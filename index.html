@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Inventory Management</title>
+  <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      padding: 2rem;
+      background-color: #ffe6f0;
+    }
+    button {
+      padding: 1rem;
+      margin: 1rem;
+      font-size: 1.2rem;
+      background-color: #ff66b2;
+      color: white;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+    }
+    button:hover {
+      background-color: #ff3385;
+    }
+    #reader {
+      width: 300px;
+      margin-top: 1rem;
+      background-color: white;
+      padding: 1rem;
+      border-radius: 10px;
+    }
+    .hidden {
+      display: none;
+    }
+    table {
+      width: 100%;
+      margin-top: 2rem;
+      border-collapse: collapse;
+      background-color: white;
+    }
+    th, td {
+      border: 1px solid #ccc;
+      padding: 0.5rem;
+      text-align: left;
+    }
+    th {
+      background-color: #ffb3d9;
+    }
+  </style>
+</head>
+<body>
+  <h1 style="color: #ff3399;">Inventory Management</h1>
+  <button onclick="startScanner('add')">Add New Product</button>
+  <button onclick="startScanner('sold')">Mark as Sold</button>
+  <button onclick="saveToStorage()">Save Data</button>
+  <button onclick="clearData()">Reset Inventory</button>
+
+  <div id="reader" class="hidden"></div>
+
+  <table id="productTable">
+    <thead>
+      <tr>
+        <th>Barcode</th>
+        <th>Sold Count</th>
+      </tr>
+    </thead>
+    <tbody id="productList"></tbody>
+  </table>
+
+  <script>
+    const dbKey = 'inventoryData';
+    let scanner;
+    let inventoryData = JSON.parse(localStorage.getItem(dbKey)) || {};
+
+    // ✅ Beep sound generator (works on mobile and desktop)
+    function playBeep() {
+      const ctx = new (window.AudioContext || window.webkitAudioContext)();
+      const oscillator = ctx.createOscillator();
+      const gainNode = ctx.createGain();
+      oscillator.type = 'sine';
+      oscillator.connect(gainNode);
+      gainNode.connect(ctx.destination);
+      oscillator.frequency.setValueAtTime(600, ctx.currentTime);
+      oscillator.start();
+      gainNode.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.2);
+      oscillator.stop(ctx.currentTime + 0.2);
+    }
+
+    function loadInventory() {
+      const tbody = document.getElementById('productList');
+      tbody.innerHTML = '';
+      Object.entries(inventoryData).forEach(([barcode, info]) => {
+        const row = `<tr><td>${barcode}</td><td>${info.sold}</td></tr>`;
+        tbody.innerHTML += row;
+      });
+    }
+
+    function saveToStorage() {
+      localStorage.setItem(dbKey, JSON.stringify(inventoryData));
+      loadInventory();
+      alert('Data saved!');
+    }
+
+    function clearData() {
+      if (confirm('Are you sure you want to reset all inventory data?')) {
+        localStorage.removeItem(dbKey);
+        inventoryData = {};
+        loadInventory();
+        alert('Inventory reset successfully.');
+      }
+    }
+
+    function handleScanResult(barcode, mode) {
+      if (mode === 'add') {
+        if (!inventoryData[barcode]) {
+          inventoryData[barcode] = { sold: 0 };
+          alert(`Product ${barcode} added!`);
+        } else {
+          alert('Product already exists!');
+        }
+      } else if (mode === 'sold') {
+        if (inventoryData[barcode]) {
+          inventoryData[barcode].sold++;
+          alert(`Sold count updated for ${barcode}!`);
+          playBeep(); // ✅ Beep only when sold scan is successful
+        } else {
+          alert('Product not found in inventory!');
+        }
+      }
+      saveToStorage();
+      scanner.clear();
+      document.getElementById('reader').classList.add('hidden');
+    }
+
+    function startScanner(mode) {
+      document.getElementById('reader').classList.remove('hidden');
+      scanner = new Html5Qrcode("reader");
+      scanner.start(
+        { facingMode: "environment" }, // ✅ Works on phone (back camera)
+        { fps: 10, qrbox: 250 },
+        (decodedText) => {
+          scanner.pause();
+          handleScanResult(decodedText, mode);
+        }
+      ).catch((err) => console.error(err));
+    }
+
+    loadInventory();
+  </script>
+</body>
+</html>
